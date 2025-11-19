@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # MySQL 5.8
+  mysql57:
+    image: m.daocloud.io/docker.io/library/mysql:5.7
+    platform: linux/amd64
+    container_name: mysql57-test
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: "testdb"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql57_data:/var/lib/mysql
+      - ./config/mysql57/conf.d:/etc/mysql/conf.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+  # MySQL 8.0
+  mysql80:
+    image: m.daocloud.io/docker.io/library/mysql:8.0
+    container_name: mysql80-test
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: "testdb"
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql80_data:/var/lib/mysql
+      - ./config/mysql80/conf.d:/etc/mysql/conf.d
+
+  # ClickHouse 20.1
+  clickhouse20:
+    image: m.daocloud.io/docker.io/yandex/clickhouse-server:20.1
+    container_name: clickhouse20-test
+    platform: linux/amd64
+    ports:
+      - "8123:8123" # HTTP接口
+      - "9000:9000" # 原生TCP接口[citation:1]
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse20_data:/var/lib/clickhouse
+      - clickhouse20_log:/var/log/clickhouse-server
+
+  # ClickHouse 21.8
+  clickhouse21:
+    image: m.daocloud.io/docker.io/yandex/clickhouse-server:21.8
+    container_name: clickhouse21-test
+    platform: linux/amd64
+    ports:
+      - "8124:8123" # HTTP接口
+      - "9001:9000" # 原生TCP接口[citation:1]
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse21_data:/var/lib/clickhouse
+      - clickhouse21_log:/var/log/clickhouse-server
+
+volumes:
+  mysql57_data:
+  mysql80_data:
+  clickhouse20_data:
+  clickhouse20_log:
+  clickhouse21_data:
+  clickhouse21_log:

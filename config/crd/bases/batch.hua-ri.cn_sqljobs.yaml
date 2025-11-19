@@ -1,0 +1,603 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: sqljobs.batch.hua-ri.cn
+spec:
+  group: batch.hua-ri.cn
+  names:
+    kind: SqlJob
+    listKind: SqlJobList
+    plural: sqljobs
+    singular: sqljob
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.currentStage
+      name: Current Stage
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .status.message
+      name: Message
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: SqlJob 是SqlJob API的Schema
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: SqlJobSpec 定义了SqlJob的期望状态
+            properties:
+              database:
+                description: 全局数据库配置，可以被阶段级别的配置覆盖
+                properties:
+                  database:
+                    type: string
+                  host:
+                    description: 连接详情
+                    type: string
+                  parameters:
+                    additionalProperties:
+                      type: string
+                    description: 额外的连接参数
+                    type: object
+                  passwordSecret:
+                    description: 密码Secret引用
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  port:
+                    format: int32
+                    type: integer
+                  timeout:
+                    description: 连接超时时间（秒）
+                    format: int32
+                    type: integer
+                  tls:
+                    description: SSL/TLS配置
+                    properties:
+                      caSecret:
+                        description: CA证书Secret引用
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      clientCertSecret:
+                        description: 客户端证书Secret引用
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      enabled:
+                        description: 启用TLS
+                        type: boolean
+                      skipVerify:
+                        description: 跳过证书验证
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                  type:
+                    description: 数据库类型：mysql或clickhouse
+                    enum:
+                    - mysql
+                    - clickhouse
+                    type: string
+                  username:
+                    type: string
+                  version:
+                    description: 数据库版本（例如："mysql5.7", "mysql8.0", "clickhouse22.8"）
+                    type: string
+                required:
+                - database
+                - host
+                - passwordSecret
+                - port
+                - type
+                - username
+                type: object
+              retryPolicy:
+                description: 全局重试策略
+                properties:
+                  backoff:
+                    description: 退避策略
+                    properties:
+                      initialInterval:
+                        description: 初始退避持续时间（秒）
+                        format: int32
+                        type: integer
+                      maxInterval:
+                        description: 最大退避持续时间（秒）
+                        format: int32
+                        type: integer
+                      multiplier:
+                        description: 退避乘数
+                        format: int32
+                        type: integer
+                    type: object
+                  maxRetries:
+                    description: 最大重试次数
+                    format: int32
+                    type: integer
+                type: object
+              stages:
+                description: 执行阶段定义
+                items:
+                  description: Stage 定义了单个执行阶段
+                  properties:
+                    conditions:
+                      description: 执行此阶段的条件
+                      items:
+                        description: Condition 定义了阶段的执行条件
+                        properties:
+                          expectedValue:
+                            description: 用于比较的期望值
+                            type: string
+                          expression:
+                            description: 要评估的表达式
+                            type: string
+                          script:
+                            description: 自定义条件脚本
+                            type: string
+                          stage:
+                            description: 要检查条件的阶段名称
+                            type: string
+                          type:
+                            description: 条件类型
+                            enum:
+                            - Always
+                            - OnSuccess
+                            - OnFailure
+                            - OnRowsAffected
+                            - Custom
+                            type: string
+                        required:
+                        - type
+                        type: object
+                      type: array
+                    database:
+                      description: 此阶段的数据库配置（覆盖全局配置）
+                      properties:
+                        database:
+                          type: string
+                        host:
+                          description: 连接详情
+                          type: string
+                        parameters:
+                          additionalProperties:
+                            type: string
+                          description: 额外的连接参数
+                          type: object
+                        passwordSecret:
+                          description: 密码Secret引用
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        port:
+                          format: int32
+                          type: integer
+                        timeout:
+                          description: 连接超时时间（秒）
+                          format: int32
+                          type: integer
+                        tls:
+                          description: SSL/TLS配置
+                          properties:
+                            caSecret:
+                              description: CA证书Secret引用
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            clientCertSecret:
+                              description: 客户端证书Secret引用
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            enabled:
+                              description: 启用TLS
+                              type: boolean
+                            skipVerify:
+                              description: 跳过证书验证
+                              type: boolean
+                          required:
+                          - enabled
+                          type: object
+                        type:
+                          description: 数据库类型：mysql或clickhouse
+                          enum:
+                          - mysql
+                          - clickhouse
+                          type: string
+                        username:
+                          type: string
+                        version:
+                          description: 数据库版本（例如："mysql5.7", "mysql8.0", "clickhouse22.8"）
+                          type: string
+                      required:
+                      - database
+                      - host
+                      - passwordSecret
+                      - port
+                      - type
+                      - username
+                      type: object
+                    description:
+                      description: 阶段描述
+                      type: string
+                    expectations:
+                      description: 期望结果验证
+                      properties:
+                        expectedRowCount:
+                          description: 查询的期望行数
+                          format: int64
+                          type: integer
+                        maxRowsAffected:
+                          description: 最大影响行数
+                          format: int64
+                          type: integer
+                        minRowsAffected:
+                          description: 最小影响行数
+                          format: int64
+                          type: integer
+                        validationScript:
+                          description: 自定义验证脚本
+                          type: string
+                      type: object
+                    name:
+                      description: 阶段名称，必须唯一
+                      type: string
+                    output:
+                      description: 输出配置（用于查询操作）
+                      properties:
+                        csv:
+                          description: CSV配置
+                          properties:
+                            dateFormat:
+                              description: 自定义日期格式
+                              type: string
+                            delimiter:
+                              description: 字段分隔符
+                              type: string
+                            filenamePrefix:
+                              description: 文件名前缀
+                              type: string
+                            includeHeader:
+                              description: 包含标题行
+                              type: boolean
+                          required:
+                          - filenamePrefix
+                          type: object
+                        destinations:
+                          description: 存储目的地
+                          items:
+                            description: Destination 定义了输出存储目的地
+                            properties:
+                              aliOSS:
+                                description: 阿里云OSS配置
+                                properties:
+                                  bucket:
+                                    type: string
+                                  endpoint:
+                                    type: string
+                                  pathPrefix:
+                                    description: 对象路径前缀
+                                    type: string
+                                  region:
+                                    type: string
+                                  secretRef:
+                                    description: 包含访问密钥和秘密密钥的Secret
+                                    properties:
+                                      key:
+                                        type: string
+                                      name:
+                                        type: string
+                                    required:
+                                    - name
+                                    type: object
+                                required:
+                                - bucket
+                                - endpoint
+                                - region
+                                - secretRef
+                                type: object
+                              tencentCOS:
+                                description: 腾讯云COS配置
+                                properties:
+                                  bucket:
+                                    type: string
+                                  pathPrefix:
+                                    description: 对象路径前缀
+                                    type: string
+                                  region:
+                                    type: string
+                                  secretRef:
+                                    description: 包含Secret ID和Secret Key的Secret
+                                    properties:
+                                      key:
+                                        type: string
+                                      name:
+                                        type: string
+                                    required:
+                                    - name
+                                    type: object
+                                required:
+                                - bucket
+                                - region
+                                - secretRef
+                                type: object
+                              type:
+                                description: 目的地类型
+                                enum:
+                                - alioss
+                                - tencentcos
+                                - feishu
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
+                      required:
+                      - csv
+                      type: object
+                    queries:
+                      description: 要执行的SQL语句
+                      items:
+                        type: string
+                      type: array
+                    rollbackQueries:
+                      description: 失败时的回滚查询
+                      items:
+                        type: string
+                      type: array
+                    timeout:
+                      description: 此阶段的超时时间（秒）
+                      format: int32
+                      type: integer
+                    type:
+                      description: 操作类型
+                      enum:
+                      - Query
+                      - Execute
+                      - DDL
+                      - DML
+                      type: string
+                  required:
+                  - name
+                  - queries
+                  - type
+                  type: object
+                type: array
+              variables:
+                additionalProperties:
+                  type: string
+                description: 全局变量，可以在阶段间共享
+                type: object
+            required:
+            - stages
+            type: object
+          status:
+            description: SqlJobStatus 定义了SqlJob的观察状态
+            properties:
+              completionTime:
+                description: 作业完成时间
+                format: date-time
+                type: string
+              computedVariables:
+                additionalProperties:
+                  type: string
+                description: 计算后的全局变量
+                type: object
+              currentStage:
+                description: 当前正在执行的阶段
+                type: string
+              message:
+                description: 总体消息
+                type: string
+              phase:
+                description: 作业的当前阶段
+                enum:
+                - Pending
+                - Running
+                - Succeeded
+                - Failed
+                - Retrying
+                type: string
+              retryCount:
+                description: 当前阶段的重试次数
+                format: int32
+                type: integer
+              stageHistory:
+                description: 阶段执行历史
+                items:
+                  description: StageResult 包含阶段的执行结果
+                  properties:
+                    completionTime:
+                      description: 阶段完成时间
+                      format: date-time
+                      type: string
+                    conditionResults:
+                      description: 条件评估结果
+                      items:
+                        description: ConditionResult 包含条件评估结果
+                        properties:
+                          description:
+                            description: 条件描述
+                            type: string
+                          message:
+                            description: 详细消息
+                            type: string
+                          met:
+                            description: 条件是否满足
+                            type: boolean
+                        required:
+                        - description
+                        - met
+                        type: object
+                      type: array
+                    executionStats:
+                      description: 对于执行操作：执行统计
+                      properties:
+                        executionTime:
+                          description: 执行时间（毫秒）
+                          format: int64
+                          type: integer
+                        queryResults:
+                          description: 单个查询结果
+                          items:
+                            description: QueryResult 包含单个查询的结果
+                            properties:
+                              error:
+                                description: 如果查询失败，错误消息
+                                type: string
+                              index:
+                                description: 查询索引
+                                format: int32
+                                type: integer
+                              lastInsertId:
+                                description: 最后插入的ID（如果适用）
+                                format: int64
+                                type: integer
+                              rowsAffected:
+                                description: 影响的行数
+                                format: int64
+                                type: integer
+                            required:
+                            - index
+                            - rowsAffected
+                            type: object
+                          type: array
+                        rowsAffected:
+                          description: 所有查询影响的总行数
+                          format: int64
+                          type: integer
+                      required:
+                      - executionTime
+                      - rowsAffected
+                      type: object
+                    exportResults:
+                      description: 对于查询操作：导出结果
+                      items:
+                        description: ExportResult 包含查询操作的导出信息
+                        properties:
+                          destinationType:
+                            description: 目的地类型
+                            enum:
+                            - alioss
+                            - tencentcos
+                            - feishu
+                            type: string
+                          fileSize:
+                            description: 文件大小（字节）
+                            format: int64
+                            type: integer
+                          location:
+                            description: 文件位置或标识符
+                            type: string
+                          rowsExported:
+                            description: 导出的行数
+                            format: int64
+                            type: integer
+                          uploadTime:
+                            description: 上传时间戳
+                            format: date-time
+                            type: string
+                        required:
+                        - destinationType
+                        - fileSize
+                        - location
+                        - rowsExported
+                        - uploadTime
+                        type: object
+                      type: array
+                    message:
+                      description: 详细消息
+                      type: string
+                    name:
+                      description: 阶段名称
+                      type: string
+                    phase:
+                      description: 执行阶段
+                      enum:
+                      - Pending
+                      - Running
+                      - Succeeded
+                      - Failed
+                      - Skipped
+                      - RolledBack
+                      type: string
+                    startTime:
+                      description: 阶段开始时间
+                      format: date-time
+                      type: string
+                    variables:
+                      additionalProperties:
+                        type: string
+                      description: 从此阶段提取的变量
+                      type: object
+                  required:
+                  - name
+                  - phase
+                  type: object
+                type: array
+              startTime:
+                description: 作业开始时间
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

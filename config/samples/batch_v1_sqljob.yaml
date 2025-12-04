@@ -2,8 +2,154 @@ apiVersion: batch.hua-ri.cn/v1
 kind: SqlJob
 metadata:
   labels:
-    app.kubernetes.io/name: sql-executor-operator
-    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: sqljob
+    app.kubernetes.io/instance: sqljob-sample
   name: sqljob-sample
+  namespace: default
 spec:
-  # TODO(user): Add fields here
+  # 数据库连接配置
+  database:
+    type: mysql
+    version: "8.0"
+    host: "192.168.71.30" # 请替换为你的数据库地址
+    port: 3307
+    database: "your_db_name" # 请替换为你的数据库名
+    username: "your_db_user_name" # 请替换为你的数据库用户名
+    # 密码通过Secret引用，更安全
+    passwordSecret:
+      name: "your-mysql-root-password" # 请确保此Secret已在集群中创建
+      key: "password" # 可选，默认为`password`
+    # 附加连接参数
+    parameters:
+      charset: "utf8mb4"
+      parseTime: "true"
+
+  # 全局变量，可在SQL查询中通过{{.var_name}}引用
+  variables:
+    table_prefix: "test_"
+    batch_size: "100"
+
+  # 任务执行阶段，按顺序或条件执行
+  stages:
+    # 第一阶段：DDL，创建表结构
+    - name: "create-tables"
+      description: "创建测试用的数据表"
+      type: DDL # 类型：DDL | DML | Query
+      queries:
+        - |
+          CREATE TABLE IF NOT EXISTS {{.table_prefix}}users (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(100) NOT NULL UNIQUE,
+            email VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        - |
+          CREATE TABLE IF NOT EXISTS {{.table_prefix}}orders (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            order_number VARCHAR(50) NOT NULL UNIQUE,
+            amount DECIMAL(10,2) NOT NULL,
+            status ENUM('pending', 'completed', 'cancelled') DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES {{.table_prefix}}users(id)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      timeout: 30 # 阶段超时时间（秒）
+
+    # 第二阶段：DML，插入数据，依赖第一阶段成功
+    - name: "insert-test-data"
+      description: "插入测试用户和订单数据"
+      type: DML
+      queries:
+        - |
+          INSERT INTO {{.table_prefix}}users (username, email) VALUES
+          ('user1', 'user1@example.com'),
+          ('user2', 'user2@example.com'),
+          ('user3', 'user3@example.com'),
+          ('user4', 'user4@example.com'),
+          ('user5', 'user5@example.com')
+        - |
+          INSERT INTO {{.table_prefix}}orders (user_id, order_number, amount, status) VALUES
+          (1, 'ORDER001', 99.99, 'completed'),
+          (1, 'ORDER002', 149.50, 'pending'),
+          (2, 'ORDER003', 199.99, 'completed'),
+          (3, 'ORDER004', 79.99, 'completed'),
+          (4, 'ORDER005', 299.99, 'pending')
+      # 执行条件：仅当`create-tables`阶段成功时执行
+      conditions:
+        - type: OnSuccess # OnSuccess | OnFailure | Always
+          stage: "create-tables"
+      timeout: 60
+
+    # 第三阶段：查询并导出结果到对象存储
+    - name: "verify-data-and-export"
+      description: "验证数据并导出到多个对象存储"
+      type: Query
+      queries:
+        - "SELECT COUNT(*) as user_count FROM {{.table_prefix}}users"
+        - "SELECT COUNT(*) as order_count FROM {{.table_prefix}}orders"
+        - "SELECT status, COUNT(*) as count, SUM(amount) as total_amount FROM {{.table_prefix}}orders GROUP BY status"
+      # 输出配置
+      output:
+        csv:
+          filenamePrefix: "mysql-data-export"
+          includeHeader: true
+          delimiter: ","
+        # 可以配置多个输出目的地
+        destinations:
+          # 阿里云 OSS 配置
+          - type: alioss
+            aliOSS:
+              bucket: "your_bucket_name" # 请替换为你的OSS Bucket名称
+              endpoint: "your_bucket_endpoint" # 请替换为你的Endpoint，如oss-cn-shanghai.aliyuncs.com
+              region: "cn-hangzhou" # 请替换为你的地域
+              secretRef:
+                name: "alioss-secret" # 请确保此Secret已在集群中创建
+              pathPrefix: "your_bucket_path_prefix" # 文件上传路径前缀，如sqljob-exports/
+          # 腾讯云 COS 配置（可选）
+          - type: tencentcos
+            tencentCOS:
+              bucket: "your_bucket_name" # 请替换为你的COS Bucket (BucketName-APPID)
+              region: "ap-guangzhou" # 请替换为你的地域
+              secretRef:
+                name: "tencent-secret" # 请确保此Secret已在集群中创建
+              pathPrefix: "your_bucket_path_prefix" # 文件上传路径前缀，如sqljob-exports/
+      conditions:
+        - type: OnSuccess
+          stage: "insert-test-data"
+      timeout: 30
+
+---
+# 1. 创建 MySQL 密码 Secret：kubectl create secret generic mysql-root-password --namespace=default --from-literal=password='YourActualMySQLPassword123!'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: your-mysql-root-password
+  namespace: default
+type: Opaque
+data:
+  password: "your_mysql_password_here" # 这里是base64编码后的密码，不是明文
+
+---
+# 2. 创建阿里云 OSS Secret：kubectl create secret generic alioss-secret --namespace=default --from-literal=accessKey='LTAI5txxxxxxxxxxxxx' --from-literal=secretKey='KZo1234567890abcdefghijklmnopqrstuvwxyz'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alioss-secret
+  namespace: default
+type: Opaque
+data:
+  accessKey: "your_aliyun_access_key" # 这里是base64编码后的密码，不是明文
+  secretKey: "your_aliyun_secret_key" # 这里是base64编码后的密码，不是明文
+
+---
+# 3. 创建腾讯云 COS Secret：kubectl create secret generic tencent-secret --namespace=default --from-literal=accessKey='AKID1234567890abcdefghijklmnopqrstuvwxyz' --from-literal=secretKey='abcdefghijklmnopqrstuvwxyz1234567890ABCD'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tencent-secret
+  namespace: default
+type: Opaque
+data:
+  accessKey: "your_tencent_access_key" # 这里是base64编码后的密码，不是明文
+  secretKey: "your_tencent_secret_key" # 这里是base64编码后的密码，不是明文
